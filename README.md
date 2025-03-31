@@ -18,3 +18,5 @@ A **full-stack authentication system** using **Angular** and **.NET Core Web API
 ```sh
 git clone https://github.com/snehamainkar11/Angular-DotNetCore-JWT-Auth.git
 cd Angular-DotNetCore-JWT-Auth
+
+for Angular use this repo:https://github.com/snehamainkar11/Angular-Authentication-.NET/tree/main
