@@ -1,9 +1,9 @@
-﻿using AuthECAPI.Models;
+﻿using AuthECAPI.DBContext;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuthECAPI.Extensions
 {
-    public static  class EFCoreExtensions
+    public static class EFCoreExtensions
     {
         public static IServiceCollection InjectDBContext(this IServiceCollection services ,IConfiguration config)
         {

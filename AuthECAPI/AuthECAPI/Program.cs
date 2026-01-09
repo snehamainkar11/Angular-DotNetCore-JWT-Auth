@@ -1,5 +1,8 @@
+using AuthECAPI.Data;
+using AuthECAPI.DBContext;
 using AuthECAPI.Extensions;
-using AuthECAPI.Models;
+using AuthECAPI.FunctionTriggers;
+using AuthECAPI.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -17,80 +20,104 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
+builder.Services.AddSwaggerGen(options =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Auth API", Version = "v1" });
+    options.SwaggerDoc("v1", new OpenApiInfo { Title = "Auth API", Version = "v1" });
+    options.AddSecurityDefinition(JwtBearerDefaults.AuthenticationScheme, new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = JwtBearerDefaults.AuthenticationScheme,
+        In = ParameterLocation.Header,
+        Description = "Please enter a token",
+        BearerFormat = "JWT"
+    });
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {  
+      {
+        new OpenApiSecurityScheme
+        {
+            Reference = new OpenApiReference
+            {
+                Type = ReferenceType.SecurityScheme,
+                Id = "Bearer"
+            }
+        },[]
+      }
+    });
 });
 
+
 //services from identity core
-builder.Services.InjectDBContext(builder.Configuration).
+builder.Services.AddDbContext<AppDBContext>(options =>options.UseSqlServer(builder.Configuration.GetConnectionString("DevDB1"))).
                  AddIdentityHandlersAndStores()
                 .ConfigureIdentityOptions()
                 .AddIdentityAuth(builder.Configuration);
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAngularProd", policy =>
+    {
+        policy.WithOrigins("https://blogapp-cze7fag5e5g6bka0.centralindia-01.azurewebsites.net")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
 
 
+builder.Services.AddAuthorization();
+builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IGoogleAuthService, GoogleAuthService>();
+builder.Services.AddHttpClient<IFunctionInvoker, FunctionInvoker>();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
+app.UseSwagger();
+
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
+    app.UseDeveloperExceptionPage();
     app.UseSwaggerUI();
+    app.UseCors(options =>
+                    options.WithOrigins("http://localhost:4200", "http://localhost:5173").
+                    AllowAnyMethod().
+                    AllowAnyHeader());
 }
-app.ConfigCORS(builder.Configuration).
-    AddIdentityAuthMiddleware();
+else
+{
+    app.UseExceptionHandler("/error");
+    app.UseCors("AllowAngularProd");
 
-app.MapControllers();
+}
 
-app.MapGroup("/api").MapIdentityApi<AppUser>();
 
-//app.MapPost("/api/signup", async (
-//    UserManager<AppUser> userManager,
-//    [FromBody] UserRegistrationModel userRegistrationModel
-//    ) =>
-//{
-//    AppUser user = new AppUser
-//    {
-//        UserName = userRegistrationModel.Email,
-//        Email = userRegistrationModel.Email,
-//        FullName = userRegistrationModel.FullName,
-//    };
-//    var result = await userManager.CreateAsync(user, userRegistrationModel.Password);
-//    if (result.Succeeded) 
-//        return Results.Ok(result);
-//    else 
-//        return Results.BadRequest(result);
-//});
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    await DBSeeder.SeedRolesAsync(services);
+    await DBSeeder.AddAdmin(services);
+}
 
-//app.MapPost("/api/signin", async (
-//    UserManager<AppUser> userManager,
-//    [FromBody] LoginModel loginModel
-//    ) =>
-//{
-//    var user = await userManager.FindByEmailAsync(loginModel.Email);
-//    if (user != null && await userManager.CheckPasswordAsync(user, loginModel.Password))
-//    {
-//        var signInKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["AppSettings:JWTSecret"]!));
-//        var tokenDescriptor = new SecurityTokenDescriptor
-//        {
-//            Subject = new ClaimsIdentity(new Claim[]
-//            {
-//                new Claim("UserID", user.Id.ToString()),
-//            }),
-//            Expires = DateTime.UtcNow.AddMinutes(10),
-//            SigningCredentials = new SigningCredentials(signInKey, SecurityAlgorithms.HmacSha256Signature)
-//        };
 
-//        var tokenHandler = new JwtSecurityTokenHandler();
-//        var securityToken = tokenHandler.CreateToken(tokenDescriptor);
-//        var token = tokenHandler.WriteToken(securityToken);
+app.UseDefaultFiles();   // serve index.html
+app.UseStaticFiles();    // serve Angular assets
 
-//        return Results.Ok(new { token });
-//    }
-//    else
-//    {
-//        return Results.BadRequest(new { message = "Username or password is incorrect" });
-//    }
-//});
+app.UseRouting();        // enable routing
+app.Use(async (context, next) =>
+{
+    if (context.Request.Method == HttpMethods.Options)
+    {
+        context.Response.StatusCode = 200;
+        await context.Response.CompleteAsync();
+    }
+    else
+    {
+        await next();
+    }
+});
+
+app.UseAuthentication(); // validate JWT
+app.UseAuthorization();  // enforce policies
+
+app.MapControllers();    // m
 
 app.Run();

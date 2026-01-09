@@ -1,4 +1,5 @@
-﻿using AuthECAPI.Models;
+﻿using AuthECAPI.DBContext;
+using AuthECAPI.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
@@ -10,7 +11,7 @@ namespace AuthECAPI.Extensions
     {
         public static IServiceCollection AddIdentityHandlersAndStores(this IServiceCollection services)
         {
-            services.AddIdentityApiEndpoints<AppUser>().AddEntityFrameworkStores<AppDBContext>();
+            services.AddIdentity<AppUser,IdentityRole>().AddEntityFrameworkStores<AppDBContext>();
             return services;
         }
 
@@ -18,7 +19,7 @@ namespace AuthECAPI.Extensions
         {
             services.Configure<IdentityOptions>(options =>
             {
-                options.Password.RequireDigit = false;
+                options.Password.RequireDigit = true;
                 options.Password.RequireLowercase = false;
                 options.Password.RequireUppercase = false;
             });
@@ -32,23 +33,21 @@ namespace AuthECAPI.Extensions
                 x.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
                 x.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
                 x.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
-            }).AddJwtBearer(j =>
+            }).AddJwtBearer(options =>
             {
-                j.SaveToken = false;
-                j.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+                options.RequireHttpsMetadata = false;
+                options.SaveToken = true;
+                options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
                 {
                     ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["AppSettings:JWTSecret"]!)),
+                    ValidateIssuer = false,
+                    ValidateAudience = false,
+                    ValidateLifetime = false,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["JWT:Secret"]!)),
                 };
             });
             return services;
         }
-        public static WebApplication AddIdentityAuthMiddleware(this WebApplication app)
-        {
-            app.UseAuthentication();
-
-            app.UseAuthorization();
-            return app;
-        }
+      
     }
-}
+} 

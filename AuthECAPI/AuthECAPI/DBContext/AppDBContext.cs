@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+﻿using AuthECAPI.Models;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
-namespace AuthECAPI.Models
+namespace AuthECAPI.DBContext
 {
     public class AppDBContext :IdentityDbContext
     {
@@ -10,6 +11,7 @@ namespace AuthECAPI.Models
             
         }
         public DbSet<AppUser> AppUsers { get; set; }
-
+        public DbSet<Blog> Blogs { get; set; }
+        public DbSet<RefreshToken> RefreshTokens { get; set; }
     }
 }
